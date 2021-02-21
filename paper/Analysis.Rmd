@@ -1,0 +1,90 @@
+---
+title: "Analysis"
+author: "Arunima Roy"
+date: "2/20/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, results='hide', message=FALSE, warning=FALSE}
+source('../code/Shared_Code.R', local = FALSE)
+```
+## Purpose 
+The college scorecard was released at the start of September 2015. The purpose of this analysis paper is to determine if among colleges that predominantly grant bachelor's degrees, if that would result in more student interest in high-earnings colleges relative to low-earnings ones (as proxied by Google Searches for keywords associated with those colleges).
+
+Collectively, I was able to combine the various different datasets together into one, bringing in a total of 10 variables (and making a few more along the way for further analysis purposes).
+
+#### Variables: 
+
+1) UNITID: Unit id for the institution. 
+
+2) OPEID: 8-digit OPE ID for the institution
+
+3) INSTNM: Name of institution
+
+4) PREDDEG: Predominant degree awarded. There are 5 levels for this variable but for this case study, level 3 is where the degree awarded equaled to bachelor's degrees
+
+5) CONTROL: This is the control of the kind of institution. This is a 3 level variable. Level 1 is public school, level 2 is private nonprofit, and level 3 is private for profit
+
+6) KEYWORD: Words selected to be reflective of a university in the United States 
+
+7) MONTHORWEEK: Range when the keyword was searched
+
+8) KEYNUM: Indexed value of the keyword variable
+
+9) MEDEARNINGS: Median earnings of students working and not enrolled 10 years after entry
+
+10) INDEX: Google Trends index of keywords
+
+#### Manipulations 
+With this base set of variables, extra manipulation and cleansing had to be done. 
+
+First and foremost, the median earnings needed to be found in order to determine the threshold between a high-earnings and low-earnings. That threshold number was 41800. The assumption made is that any earnings below that number is considered as low-earnings and earnings above the median number is considered as high-earnings. 
+
+The next big step in making the data look correct was to normalize the index variable by taking the index value, subtracting the mean index value and then dividing by the standard deviation of the index value. 
+
+Since part of the research question here is to determine if the earnings was affected before or after the college scorecard was released, the data is split into 2 data sets - pre September 2015 and post September 2015.
+
+
+## Regressions
+
+```{r, echo=FALSE}
+m1 <- lm(MEDEARNINGS ~ SD_INDEX + HIGH_EARNING + factor(CONTROL), data = pre_sept_15)
+m2 <- lm(MEDEARNINGS ~ SD_INDEX + HIGH_EARNING + factor(CONTROL), data = post_sept_15)
+export_summs(m1, m2)
+
+```
+
+Model 1 is showing the effect of the standardized index (SD_INDEX) on median earnings (MEDEARNINGS), while controlling for high-earnings (HIGH-EARNINGS) and the fixed control of type of institution (CONTROL) prior to the college scorecard being released in September 2015. Model 2 is showing the same as model 1 except that this is post college scorecard release. 
+
+The results for Model 1 show that when we increase the SD_INDEX by one unit, this increases median earnings by around $271, holding all else constant. 
+A one unit increase in SD_INDEX, results in a $565 increase in median earnings for someone who goes to a private non-profit compared to someone who attends public institution. 
+
+The results for Model 2 show that when we increase the SD_INDEX by one unit, this increases median earnings by around $161, holding all else constant. 
+A one unit increase in SD_INDEX, results in a $592 increase in median earnings for someone who goes to a private non-profit compared to someone who attends public institution. 
+A one unit increase in SD_INDEX, results in a $177 increase in median earnings for someone who goes to a private for-profit compared to someone who attends public institution. 
+
+
+#### Graphs
+
+The first graph that we have shows the distribution of median earnings. 
+
+```{r, echo=FALSE}
+histogram
+```
+
+
+What we can see from this graph is that the median number of earning is around the $35k-$47k range of earnings, with a few outliers to show that there are a few people who make six figure earnings after having graduated from university 10 years after entry. 
+
+
+A better, visualization to show this distribution is shown in a pie chart below. Here, the buckets of groups is from 0 - $25,000, $25,000 - $50,000, $50,000 - $75,000, and then $75,000+. The understanding here is that the majority of people making earnings is in the $25,000 - $50,000 range. 
+```{r, echo=FALSE}
+pie
+```
+
+## Conclusion
+
+In conclusion, people looking to graduate with a bachelor's degree put more weight into searching up institutions after the college scorecard was released. This makes sense because people want to do the research before accepting going into a college as it is a big investment. It was interesting to see that there was a difference in the type of institution that people would search as that would yield higher earnings whether it was private non-profit or for-profit.  
