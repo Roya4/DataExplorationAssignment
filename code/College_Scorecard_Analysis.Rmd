@@ -1,0 +1,151 @@
+---
+title: 'Data Exploration: College Scorecard'
+author: "Arunima Roy"
+date: "2/13/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE}
+# Load packages
+library(tidyverse)
+library(jtools)
+library(vtable)
+library(purrr)
+library(dplyr)
+library(data.table)
+library(lubridate)
+library(ggplot2)
+```
+
+
+```{r}
+# Load data files starting with 'trends_up_to'
+files <- list.files(path = '../data', pattern = 'trends_up_to')
+print(files)
+
+prepend <- function(fname) {   # This function helps to add the relative path to the file name
+  paste('../data/', fname, sep='')
+}
+
+trends <- files %>% 
+  map(prepend) %>% # add relative file prefix
+  map(read_csv) %>% # read file contents
+  reduce(rbind)
+
+# Load Most_Recent_Cohorts_Scorecard and Elements
+scorecard <- read_csv('../data/Most+Recent+Cohorts+(Scorecard+Elements).csv')
+
+# Load ID name link
+id_name_link <- read_csv('../data/id_name_link.csv')
+
+```
+
+
+```{r}
+# Use rename to change the variable name to UPPER in id_name_link
+id_name_link <- id_name_link %>% rename(UNITID = unitid, OPEID = opeid)
+
+# Remove duplicates from college score file
+id_name_link_reduced <- id_name_link %>% distinct(schname, .keep_all = TRUE)
+```
+
+
+```{r}
+# Join id_name_link and scorecard together
+scoredcard_with_name_link <- merge(x = id_name_link_reduced, y = scorecard, by = c("UNITID", "OPEID"), all.x = TRUE) 
+
+# Join all three data sets together 
+scorecard_joined <- merge(x = scoredcard_with_name_link, y = trends, by = "schname", all.x = TRUE)
+
+# remove NA values
+scorecard_joined <- na.omit(scorecard_joined)
+
+```
+
+
+```{r}
+# select necessary variables
+scorecard_v1 <- scorecard_joined %>% 
+  select('UNITID', 'OPEID', 'INSTNM', 'PREDDEG', 'CONTROL', 'keyword', 'monthorweek', 'keynum', 'md_earn_wne_p10-REPORTED-EARNINGS', 'index') %>% 
+  rename(KEYWORD = keyword, MONTHORWEEK = monthorweek, KEYNUM = keynum, MEDEARNINGS = 'md_earn_wne_p10-REPORTED-EARNINGS', INDEX = index) %>% 
+  filter(PREDDEG == 3) %>% 
+  filter(MEDEARNINGS != 'NULL') %>% 
+  filter(MEDEARNINGS != 'PrivacySuppressed') %>% 
+  mutate(MEDEARNINGS = as.numeric(MEDEARNINGS))
+
+```
+
+
+```{r}
+# Create variable to define the average earnings
+med_earn <- median(scorecard_v1$MEDEARNINGS)
+```
+41800 - The threshold that I will be using as to what constitutes as high-earning will be any earning for someone who is working and not enrolled 10 years after entry and earns more than 41800. For low-earning, it will be any earning for someone who is working and not enrolled 10 years after entry and earns less than 41800. 
+
+
+```{r}
+# Standardize the data through keynum
+standard_scorecard <- scorecard_v1 %>% 
+  group_by(KEYNUM) %>% 
+  summarize(SD_INDEX = (INDEX - mean(INDEX)) / sd(INDEX), INSTNM, KEYWORD, MONTHORWEEK, KEYNUM, CONTROL, MEDEARNINGS) 
+
+```
+
+
+```{r}
+# Create dummy variable for high earning
+standard_scorecard$HIGH_EARNING <- ifelse(standard_scorecard$MEDEARNINGS >= med_earn, 1, 0)
+```
+
+
+```{r}
+# Split dataframe by before Sept. 2015 and after Sept. 2015
+pre_sept_15 <- standard_scorecard %>% 
+  mutate(DATE = substr(MONTHORWEEK, 1, 10)) %>% 
+  mutate(DATE = as.Date(DATE)) %>% 
+  filter(DATE < '2015-09-01')
+
+
+post_sept_15 <- standard_scorecard %>% 
+  mutate(DATE = substr(MONTHORWEEK, 1, 10)) %>% 
+  mutate(DATE = as.Date(DATE)) %>% 
+  filter(DATE >= '2015-09-01')
+
+```
+
+
+```{r}
+# Regression
+m1 <- lm(MEDEARNINGS ~ SD_INDEX + HIGH_EARNING + factor(CONTROL), data = pre_sept_15)
+m2 <- lm(MEDEARNINGS ~ SD_INDEX + HIGH_EARNING + factor(CONTROL), data = post_sept_15)
+export_summs(m1, m2)
+
+```
+
+
+```{r}
+freq <- setDT(standard_scorecard)[,.(num=.N) ,.(rangeEarnings=cut(standard_scorecard$MEDEARNINGS, breaks = c(0, 25000, 50000, 75000, Inf), labels = c("0-25,000", "25,000 - 50,000", "50,000 - 75,000", "75,000+")))]
+
+pie <- ggplot(freq, aes(x="", y=num, fill=rangeEarnings)) +
+  geom_bar(width = 1, stat = "identity")
+pie <- pie + coord_polar("y", start = 0) +
+  scale_fill_brewer(palette="Blues") 
+pie
+
+
+```
+
+
+
+```{r, echo=FALSE}
+# Histogram
+ggplot(data = standard_scorecard) +  
+  geom_histogram(mapping = aes(x = MEDEARNINGS), binwidth = 1000) +
+  labs(x = "Median Earnings", title = "Distribution of Median Earnings")
+
+```
+
